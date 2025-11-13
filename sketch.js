@@ -1,6 +1,5 @@
 let osc1, osc2, osc3;
-let panner1, panner2; // For binaural panning
-let filter, reverb, amp, limiter; // Added a Limiter
+let filter, reverb, amp;
 let x, y;
 let prevLeftX, prevLeftY, prevRightX, prevRightY;
 let heading = 0;
@@ -35,52 +34,27 @@ function startEverything() {
   speed = random(100);
 
   // --- SOUND SETUP ---
-  osc1 = new p5.Oscillator('sine'); // Left Channel
-  osc2 = new p5.Oscillator('sine'); // Right Channel
-  osc3 = new p5.Oscillator('triangle'); // Center Drone
+  osc1 = new p5.Oscillator('sine');
+  osc2 = new p5.Oscillator('triangle');
+  osc3 = new p5.Oscillator('sine');
   osc1.start(); osc2.start(); osc3.start();
   osc1.amp(0); osc2.amp(0); osc3.amp(0);
 
-  // Create Panners for binaural effect
-  panner1 = new p5.Panner();
-  panner2 = new p5.Panner();
-  
-  // Pan hard left and hard right
-  panner1.pan(-1);
-  panner2.pan(1);
-
   filter = new p5.LowPass();
+  osc1.disconnect(); osc2.disconnect(); osc3.disconnect();
+  osc1.connect(filter);
+  osc2.connect(filter);
+  osc3.connect(filter);
+
   reverb = new p5.Reverb();
-  limiter = new p5.Limiter(); // Create the Limiter
-  
-  // Audio Routing:
-  // Oscillators -> Panners (for 1 & 2) -> Filter
-  osc1.disconnect();
-  osc1.connect(panner1);
-  panner1.connect(filter);
-
-  osc2.disconnect();
-  osc2.connect(panner2);
-  panner2.connect(filter);
-  
-  osc3.disconnect();
-  osc3.connect(filter); // osc3 (drone) goes straight to filter
-
-  // Filter -> Reverb
   filter.disconnect();
   filter.connect(reverb);
   reverb.drywet(0.8);
   reverb.set(6, 3);
-
-  // Reverb -> Limiter (to prevent clipping)
-  reverb.disconnect();
-  reverb.connect(limiter);
-
-  // Limiter -> Master Output
-  limiter.connect();
+  reverb.connect();
 
   amp = new p5.Amplitude();
-  amp.setInput(limiter); // Get level *after* the limiter
+  amp.setInput(reverb);
 
   startMeditationMusic();
 
@@ -88,46 +62,24 @@ function startEverything() {
 }
 
 function startMeditationMusic() {
-  // osc3 is the low drone
-  osc3.freq(midiToFreq(48), 5); // C3
-  osc3.amp(0.06, 5);
-
-  // osc1 and osc2 are the binaural pair
-  let baseFreq = midiToFreq(55); // G3
-  let beatFreq = 5; // 5 Hz (Theta wave)
-  
-  osc1.freq(baseFreq - (beatFreq / 2), 5); // Left
-  osc2.freq(baseFreq + (beatFreq / 2), 5); // Right
-  
-  osc1.amp(0.1, 5);
-  osc2.amp(0.1, 5);
-  
+  osc1.freq(midiToFreq(48)); // C3
+  osc2.freq(midiToFreq(52)); // E3
+  osc3.freq(midiToFreq(57)); // A3
+  osc1.amp(0.07, 10);
+  osc2.amp(0.05, 10);
+  osc3.amp(0.03, 10);
   filter.freq(800);
   filter.res(0.4);
 }
 
 function updateMeditationMusic() {
-  // Ramp time is 10 seconds. Update interval is 25s.
-  let rampTime = 10;
-  
-  // Gently move the drone
-  osc3.freq(midiToFreq(48 + random(-0.2, 0.2)), rampTime);
-  osc3.amp(random(0.04, 0.06), rampTime);
-  
-  // Create a new, shifting binaural beat
-  let baseMidiNote = random([55, 57, 59, 60]); // G, A, B, C
-  let baseFreq = midiToFreq(baseMidiNote + random(-0.2, 0.2));
-  let beatFreq = random(3, 7); // Shifting binaural frequency (Theta/Alpha)
-  
-  osc1.freq(baseFreq - (beatFreq / 2), rampTime); // Left
-  osc2.freq(baseFreq + (beatFreq / 2), rampTime); // Right
-  
-  let newAmp = random(0.08, 0.12);
-  osc1.amp(newAmp, rampTime);
-  osc2.amp(newAmp, rampTime);
-
-  // Change the filter and reverb
-  filter.freq(random(400, 1000), rampTime);
+  osc1.freq(midiToFreq(60 + random(-0.2, 0.2)), 10);
+  osc2.freq(midiToFreq(52 + random(-0.2, 0.4)), 10);
+  osc3.freq(midiToFreq(57 + random(-0.2, 0.5)), 10);
+  osc1.amp(random(0.03, 0.05), 10);
+  osc2.amp(random(0.04, 0.06), 10);
+  osc3.amp(random(0.05, 0.07), 10);
+  filter.freq(random(400, 1200), 10);
   reverb.set(random(5, 8), 3, 5);
 }
 
@@ -137,15 +89,14 @@ function draw() {
   // --- FADE WITH BLEND MODE ---
   blendMode(BLEND);
   noStroke();
-  // 3 alpha at 4 FPS = ~2 minute fade
-  fill(0, 3);
+  // 3 alpha at 4 FPS = ~2 minute fade (4fps * 120s = 480 frames)
+  fill(0, 3); // <-- ADJUSTED for 2-minute fade
   rect(0, 0, width, height);
 
   // --- MUSIC UPDATE ---
-  // Use frameCount for reliable timing.
-  // 4 frames per second * 25 seconds = 100 frames
-  // This is longer than the 10-second ramp time, preventing clicks.
-  if (frameCount % 100 === 0) {
+  // Use frameCount for reliable timing
+  // 4 frames per second * 10 seconds = 40 frames
+  if (frameCount % 40 === 0) {
     updateMeditationMusic();
   }
 
