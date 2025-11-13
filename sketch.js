@@ -104,11 +104,21 @@ function updateMeditationMusic() {
 }
 
 function draw() {
-  // Fade existing drawings slightly each frame
+  if (!started) return;
+
+  // Fade old visuals gradually over 1 minute into black
+ 
   noStroke();
-  fill(0, 0, 0, 3); // Adjust alpha for fade speed (3 ≈ ~30s fade)
+  fill(0, 0, 0, 2)
   rect(0, 0, width, height);
 
+  let level = amp.getLevel();
+  let note = random(6 * speed);
+  heading += sin(radians(frameCount)) * 2 + randomGaussian() * 1;
+
+  r += random(-10, 10);
+  g += random(-10, 10);
+  b += random(-10, 10);
   r = constrain(r, 0, 255);
   g = constrain(g, 0, 255);
   b = constrain(b, 0, 255);
@@ -116,7 +126,7 @@ function draw() {
   x += cos(radians(note)) * 80;
   y += sin(radians(note)) * 30;
 
-  // Wrap around edges
+  // Wrap
   if (x < 0) { x = width; prevLeftX += width; prevRightX += width; }
   if (x > width) { x = 0; prevLeftX -= width; prevRightX -= width; }
   if (y < 0) { y = height; prevLeftY += height; prevRightY += height; }
@@ -143,7 +153,6 @@ function draw() {
   prevRightX = rightX;
   prevRightY = rightY;
 }
-
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
