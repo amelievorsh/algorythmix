@@ -1,22 +1,29 @@
+// --- AUDIO + VISUAL VARIABLES ---
 let osc1, osc2, osc3;
 let filter, reverb, amp;
+
 let x, y;
 let prevLeftX, prevLeftY, prevRightX, prevRightY;
-let heading = 0;
 let r = 128, g = 18, b = 12;
 let thickness = 7;
 let speed;
+
 let startButton;
 let started = false;
+
+// --- TIMERS FOR SAFE LONG-TERM RUNTIME ---
+let lastMusicUpdate = 0;
+let cycleStart = 0;
+const cycleLength = 180000; // 3 minutes
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
   colorMode(RGB, 255);
   background(0);
-  frameRate(4); // Good for efficiency
+  frameRate(4);
 
   startButton = createButton("Click to Start");
-  startButton.position(width / 2 - 60, height / 2);
+  startButton.position(width/2 - 60, height/2);
   startButton.style("font-size", "18px");
   startButton.style("padding", "10px 20px");
   startButton.mousePressed(startEverything);
@@ -24,7 +31,15 @@ function setup() {
 
 function startEverything() {
   startButton.hide();
+  startNewCycle();   // <-- SAFE cycle initialization
+  started = true;
+}
 
+// --- Reset EVERYTHING every 3 minutes ---
+function startNewCycle() {
+  background(0);
+
+  // Init visual positions
   x = width / 2;
   y = height / 2;
   prevLeftX = x - 10;
@@ -33,21 +48,27 @@ function startEverything() {
   prevRightY = y;
   speed = random(100);
 
-  // --- SOUND SETUP ---
+  // SAFELY destroy old audio if they exist
+  if (osc1) osc1.stop();
+  if (osc2) osc2.stop();
+  if (osc3) osc3.stop();
+  if (filter) filter.disconnect();
+  if (reverb) reverb.disconnect();
+
+  // Completely rebuild audio chain
   osc1 = new p5.Oscillator('sine');
   osc2 = new p5.Oscillator('triangle');
   osc3 = new p5.Oscillator('sine');
+
   osc1.start(); osc2.start(); osc3.start();
-  osc1.amp(0); osc2.amp(0); osc3.amp(0);
+  osc1.amp(0);  osc2.amp(0);  osc3.amp(0);
 
   filter = new p5.LowPass();
-  osc1.disconnect(); osc2.disconnect(); osc3.disconnect();
   osc1.connect(filter);
   osc2.connect(filter);
   osc3.connect(filter);
 
   reverb = new p5.Reverb();
-  filter.disconnect();
   filter.connect(reverb);
   reverb.drywet(0.8);
   reverb.set(6, 3);
@@ -58,52 +79,68 @@ function startEverything() {
 
   startMeditationMusic();
 
-  started = true;
+  // Reset timers
+  lastMusicUpdate = millis();
+  cycleStart = millis();
 }
 
+// --- Soft ambient chord state ---
 function startMeditationMusic() {
-  osc1.freq(midiToFreq(48)); // C3
-  osc2.freq(midiToFreq(52)); // E3
-  osc3.freq(midiToFreq(57)); // A3
-  osc1.amp(0.07, 10);
-  osc2.amp(0.05, 10);
-  osc3.amp(0.03, 10);
+  osc1.freq(midiToFreq(48));
+  osc2.freq(midiToFreq(52));
+  osc3.freq(midiToFreq(57));
+
+  osc1.amp(0.07, 5);
+  osc2.amp(0.05, 5);
+  osc3.amp(0.03, 5);
+
   filter.freq(800);
   filter.res(0.4);
 }
 
 function updateMeditationMusic() {
-  osc1.freq(midiToFreq(60 + random(-0.2, 0.2)), 10);
-  osc2.freq(midiToFreq(52 + random(-0.2, 0.4)), 10);
-  osc3.freq(midiToFreq(57 + random(-0.2, 0.5)), 10);
+  let drift1 = random(-0.2, 0.2);
+  let drift2 = random(-0.2, 0.4);
+  let drift3 = random(-0.2, 0.5);
+
+  osc1.freq(midiToFreq(60 + drift1), 10);
+  osc2.freq(midiToFreq(52 + drift2), 10);
+  osc3.freq(midiToFreq(57 + drift3), 10);
+
   osc1.amp(random(0.03, 0.05), 10);
   osc2.amp(random(0.04, 0.06), 10);
   osc3.amp(random(0.05, 0.07), 10);
+
   filter.freq(random(400, 1200), 10);
-  reverb.set(random(5, 8), 3, 5);
 }
 
 function draw() {
   if (!started) return;
 
-  // --- FADE WITH BLEND MODE ---
-  blendMode(BLEND);
+  let now = millis();
+
+  // --- 3-minute fade-to-black ---
+  let progress = (now - cycleStart) / cycleLength;
+  let fadeStrength = map(progress, 0, 1, 2, 40);  // stronger at end
+  fill(0, fadeStrength);
   noStroke();
-  // 3 alpha at 4 FPS = ~2 minute fade (4fps * 120s = 480 frames)
-  fill(0, 3); // <-- ADJUSTED for 2-minute fade
   rect(0, 0, width, height);
 
-  // --- MUSIC UPDATE ---
-  // Use frameCount for reliable timing
-  // 4 frames per second * 10 seconds = 40 frames
-  if (frameCount % 40 === 0) {
+  // --- MUSIC UPDATE every 10 seconds ---
+  if (now - lastMusicUpdate > 10000) {
     updateMeditationMusic();
+    lastMusicUpdate = now;
   }
 
-  // --- VISUAL LOGIC ---
+  // --- RESTART EVERYTHING after 3 minutes ---
+  if (now - cycleStart > cycleLength) {
+    startNewCycle();
+    return;
+  }
+
+  // --- VISUALS ---
   let level = amp.getLevel();
   let note = random(6 * speed);
-  heading += sin(radians(frameCount % 360)) * 2 + randomGaussian() * 1;
 
   r += random(-10, 10);
   g += random(-10, 10);
@@ -115,14 +152,13 @@ function draw() {
   x += cos(radians(note)) * 80;
   y += sin(radians(note)) * 30;
 
-  // Wrap safely
-  if (x < 0) { x = width; prevLeftX += width; prevRightX += width; }
-  if (x > width) { x = 0; prevLeftX -= width; prevRightX -= width; }
-  if (y < 0) { y = height; prevLeftY += height; prevRightY += height; }
-  if (y > height) { y = 0; prevLeftY -= height; prevRightY -= height; }
+  if (x < 0) { x = width; }
+  if (x > width) { x = 0; }
+  if (y < 0) { y = height; }
+  if (y > height) { y = 0; }
 
-  let leftX = x + cos(radians(speed - 30)) * level;
-  let leftY = y + sin(radians(note - 30)) * thickness;
+  let leftX  = x + cos(radians(speed - 30)) * level;
+  let leftY  = y + sin(radians(note - 30)) * thickness;
   let rightX = x + cos(radians(note + 90)) * thickness;
   let rightY = y + sin(radians(speed + 90)) * level;
 
@@ -138,36 +174,8 @@ function draw() {
   prevLeftY = leftY;
   prevRightX = rightX;
   prevRightY = rightY;
-
-  // Reinitialize colors every 1 hour (4 fps * 3600s)
-  if (frameCount % 14400 === 0) {
-    r = random(255);
-    g = random(255);
-    b = random(255);
-  }
 }
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  background(0); // Clear and reset background
-  
-  if (startButton && !started) {
-    startButton.position(width / 2 - 60, height / 2);
-  }
-
-  if (started) {
-    x = width / 2;
-    y = height / 2;
-    prevLeftX = x - 10;
-    prevLeftY = y;
-    prevRightX = x + 10;
-    prevRightY = y;
-  }
-}
-
-function keyPressed() {
-  if (key === 'q') {
-    osc1.stop(); osc2.stop(); osc3.stop();
-    noLoop();
-  }
 }
